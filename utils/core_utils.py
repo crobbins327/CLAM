@@ -60,32 +60,58 @@ class EarlyStopping:
         self.verbose = verbose
         self.counter = 0
         self.best_score = None
+        self.best_auc = None
         self.early_stop = False
         self.val_loss_min = np.Inf
+        self.auc_max = 0
 
-    def __call__(self, epoch, val_loss, model, ckpt_name = 'checkpoint.pt'):
+    def __call__(self, epoch, val_loss, auc, model, ckpt_name = 'checkpoint.pt', save_best_auc=True):
+        if save_best_auc:
+            score = -val_loss
 
-        score = -val_loss
-
-        if self.best_score is None:
-            self.best_score = score
-            self.save_checkpoint(val_loss, model, ckpt_name)
-        elif score < self.best_score:
-            self.counter += 1
-            print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
-            if self.counter >= self.patience and epoch > self.stop_epoch:
-                self.early_stop = True
+            if self.best_auc is None:
+                self.best_score = score
+                self.best_auc = auc
+                self.save_checkpoint(val_loss, auc, model, ckpt_name, save_best_auc)
+            #Both auc and loss have to be worse to increment early stopping counter...
+            elif auc < self.best_auc:
+                self.counter += 1
+                print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
+                if self.counter >= self.patience and epoch > self.stop_epoch:
+                    self.early_stop = True
+            else:
+                self.best_score = score
+                self.best_auc = auc
+                self.save_checkpoint(val_loss, auc, model, ckpt_name, save_best_auc)
+                self.counter = 0
         else:
-            self.best_score = score
-            self.save_checkpoint(val_loss, model, ckpt_name)
-            self.counter = 0
+            score = -val_loss
 
-    def save_checkpoint(self, val_loss, model, ckpt_name):
-        '''Saves model when validation loss decrease.'''
+            if self.best_score is None:
+                self.best_score = score
+                self.best_auc = auc
+                self.save_checkpoint(val_loss, auc, model, ckpt_name, save_best_auc)
+            elif score < self.best_score:
+                self.counter += 1
+                print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
+                if self.counter >= self.patience and epoch > self.stop_epoch:
+                    self.early_stop = True
+            else:
+                self.best_score = score
+                self.best_auc = auc
+                self.save_checkpoint(val_loss, auc, model, ckpt_name, save_best_auc)
+                self.counter = 0
+
+    def save_checkpoint(self, val_loss, auc, model, ckpt_name, save_best_auc):
+        '''Saves model when validation loss decrease/auc increases.'''
         if self.verbose:
-            print(f'Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
+            if save_best_auc:
+                print(f'AUC increased ({self.auc_max:.4f} --> {auc:.4f}).  Saving model ...')
+            else:
+                print(f'Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
         torch.save(model.state_dict(), ckpt_name)
         self.val_loss_min = val_loss
+        self.auc_max = auc
 
 def train(datasets, cur, args):
     """   
@@ -158,12 +184,22 @@ def train(datasets, cur, args):
             model = MIL_fc(**model_dict)
     
     model.relocate()
+    
     print('Done!')
     print_network(model)
 
     print('\nInit optimizer ...', end=' ')
     optimizer = get_optim(model, args)
     print('Done!')
+    
+    if args.continue_ckpt:
+        load_ckpt = os.path.join(args.results_dir, "s_{}_checkpoint.pt".format(cur))
+        if os.path.exists(load_ckpt):
+            print('Loading from checkpoint s_{}_checkpoint.pt'.format(cur))
+            model.load_state_dict(torch.load(load_ckpt))
+        else:
+            print('No checkpoint to load from...')
+            print('Tried s_{}_checkpoint.pt'.format(cur))
     
     print('\nInit Loaders...', end=' ')
     train_loader = get_split_loader(train_split, training=True, testing = args.testing, weighted = args.weighted_sample)
@@ -173,7 +209,7 @@ def train(datasets, cur, args):
 
     print('\nSetup EarlyStopping...', end=' ')
     if args.early_stopping:
-        early_stopping = EarlyStopping(patience = 20, stop_epoch=50, verbose = True)
+        early_stopping = EarlyStopping(patience = 20, stop_epoch=60, verbose = True)
 
     else:
         early_stopping = None
@@ -272,7 +308,7 @@ def train_loop_clam(epoch, model, loader, optimizer, n_classes, bag_weight, writ
     if inst_count > 0:
         train_inst_loss /= inst_count
         print('\n')
-        for i in range(2):
+        for i in range(n_classes):
             acc, correct, count = inst_logger.get_summary(i)
             print('class {} clustering acc {}: correct {}/{}'.format(i, acc, correct, count))
 
@@ -385,7 +421,7 @@ def validate(cur, epoch, model, loader, n_classes, early_stopping = None, writer
 
     if early_stopping:
         assert results_dir
-        early_stopping(epoch, val_loss, model, ckpt_name = os.path.join(results_dir, "s_{}_checkpoint.pt".format(cur)))
+        early_stopping(epoch, val_loss, auc, model, ckpt_name = os.path.join(results_dir, "s_{}_checkpoint.pt".format(cur)), save_best_auc=True)
         
         if early_stopping.early_stop:
             print("Early stopping")
@@ -455,7 +491,7 @@ def validate_clam(cur, epoch, model, loader, n_classes, early_stopping = None, w
     print('\nVal Set, val_loss: {:.4f}, val_error: {:.4f}, auc: {:.4f}'.format(val_loss, val_error, auc))
     if inst_count > 0:
         val_inst_loss /= inst_count
-        for i in range(2):
+        for i in range(n_classes):
             acc, correct, count = inst_logger.get_summary(i)
             print('class {} clustering acc {}: correct {}/{}'.format(i, acc, correct, count))
     
@@ -476,7 +512,7 @@ def validate_clam(cur, epoch, model, loader, n_classes, early_stopping = None, w
 
     if early_stopping:
         assert results_dir
-        early_stopping(epoch, val_loss, model, ckpt_name = os.path.join(results_dir, "s_{}_checkpoint.pt".format(cur)))
+        early_stopping(epoch, val_loss, auc, model, ckpt_name = os.path.join(results_dir, "s_{}_checkpoint.pt".format(cur)), save_best_auc=True)
         
         if early_stopping.early_stop:
             print("Early stopping")

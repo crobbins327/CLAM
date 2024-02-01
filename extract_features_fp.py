@@ -15,11 +15,19 @@ from utils.file_utils import save_hdf5
 from PIL import Image
 import h5py
 import openslide
+import multiprocessing as mp
+
+num_workers = mp.cpu_count()
+print('Number of processors:', num_workers)
+if num_workers > 4:
+    num_workers = 4
+print('Using cores:', num_workers)
+
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 def compute_w_loader(file_path, output_path, wsi, model,
  	batch_size = 8, verbose = 0, print_every=20, pretrained=True, 
-	custom_downsample=1, target_patch_size=-1):
+	custom_downsample=1, target_patch_size=-1, num_workers=4):
 	"""
 	args:
 		file_path: directory of bag (.h5 file)
@@ -34,7 +42,7 @@ def compute_w_loader(file_path, output_path, wsi, model,
 	dataset = Whole_Slide_Bag_FP(file_path=file_path, wsi=wsi, pretrained=pretrained, 
 		custom_downsample=custom_downsample, target_patch_size=target_patch_size)
 	x, y = dataset[0]
-	kwargs = {'num_workers': 4, 'pin_memory': True} if device.type == "cuda" else {}
+	kwargs = {'num_workers': num_workers, 'pin_memory': True} if device.type == "cuda" else {}
 	loader = DataLoader(dataset=dataset, batch_size=batch_size, **kwargs, collate_fn=collate_features)
 
 	if verbose > 0:
@@ -106,13 +114,18 @@ if __name__ == '__main__':
 		if not args.no_auto_skip and slide_id+'.pt' in dest_files:
 			print('skipped {}'.format(slide_id))
 			continue 
+		
+		if not os.path.exists(slide_file_path):
+			print('slide {} not in path...perhaps only working on subset of data?'.format(slide_id))
+			continue
 
 		output_path = os.path.join(args.feat_dir, 'h5_files', bag_name)
 		time_start = time.time()
 		wsi = openslide.open_slide(slide_file_path)
 		output_file_path = compute_w_loader(h5_file_path, output_path, wsi, 
-		model = model, batch_size = args.batch_size, verbose = 1, print_every = 20, 
-		custom_downsample=args.custom_downsample, target_patch_size=args.target_patch_size)
+								model = model, batch_size = args.batch_size, verbose = 1, print_every = 20, 
+								custom_downsample=args.custom_downsample, target_patch_size=args.target_patch_size, 
+								num_workers=num_workers)
 		time_elapsed = time.time() - time_start
 		print('\ncomputing features for {} took {} s'.format(output_file_path, time_elapsed))
 		file = h5py.File(output_file_path, "r")

@@ -16,6 +16,7 @@ import math
 from itertools import islice
 import collections
 device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
+import multiprocessing as mp
 
 class SubsetSequentialSampler(Sampler):
 	"""Samples elements sequentially from a given list of indices, without replacement.
@@ -34,7 +35,8 @@ class SubsetSequentialSampler(Sampler):
 
 def collate_MIL(batch):
 	img = torch.cat([item[0] for item in batch], dim = 0)
-	label = torch.LongTensor([item[1] for item in batch])
+	label = torch.LongTensor(np.array([item[1] for item in batch]))
+	# label = torch.LongTensor([item[1] for item in batch])
 	return [img, label]
 
 def collate_features(batch):
@@ -44,7 +46,11 @@ def collate_features(batch):
 
 
 def get_simple_loader(dataset, batch_size=1, num_workers=1):
-	kwargs = {'num_workers': 4, 'pin_memory': False, 'num_workers': num_workers} if device.type == "cuda" else {}
+	num_workers = mp.cpu_count()
+	if num_workers > 4:
+		num_workers = 4
+	print('Using CPUs:', num_workers)
+	kwargs = {'num_workers': num_workers, 'pin_memory': False, 'num_workers': num_workers} if device.type == "cuda" else {}
 	loader = DataLoader(dataset, batch_size=batch_size, sampler = sampler.SequentialSampler(dataset), collate_fn = collate_MIL, **kwargs)
 	return loader 
 
@@ -52,7 +58,11 @@ def get_split_loader(split_dataset, training = False, testing = False, weighted 
 	"""
 		return either the validation loader or training loader 
 	"""
-	kwargs = {'num_workers': 4} if device.type == "cuda" else {}
+	num_workers = mp.cpu_count()
+	if num_workers > 4:
+		num_workers = 4
+	print('Using CPUs:', num_workers)
+	kwargs = {'num_workers': num_workers} if device.type == "cuda" else {}
 	if not testing:
 		if training:
 			if weighted:

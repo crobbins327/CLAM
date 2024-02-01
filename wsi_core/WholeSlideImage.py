@@ -30,8 +30,10 @@ class WholeSlideImage(object):
         self.name = ".".join(path.split("/")[-1].split('.')[:-1])
         self.wsi = openslide.open_slide(path)
         self.level_downsamples = self._assertLevelDownsamples()
+        # print(self.level_downsamples)
         self.level_dim = self.wsi.level_dimensions
-    
+        # print(self.level_dim)
+        
         self.contours_tissue = None
         self.contours_tumor = None
         self.hdf5_file = None
@@ -143,14 +145,14 @@ class WholeSlideImage(object):
         
         img = np.array(self.wsi.read_region((0,0), seg_level, self.level_dim[seg_level]))
         img_hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)  # Convert to HSV space
-        img_med = cv2.medianBlur(img_hsv[:,:,1], mthresh)  # Apply median blurring
-        
+        img_blur = cv2.medianBlur(img_hsv[:,:,1], mthresh)  # Apply median blurring
+        # img_blur = cv2.GaussianBlur(img_hsv[:,:,1],(5,5), 10)
        
         # Thresholding
         if use_otsu:
-            _, img_otsu = cv2.threshold(img_med, 0, sthresh_up, cv2.THRESH_OTSU+cv2.THRESH_BINARY)
+            _, img_otsu = cv2.threshold(img_blur, 0, sthresh_up, cv2.THRESH_OTSU+cv2.THRESH_BINARY)
         else:
-            _, img_otsu = cv2.threshold(img_med, sthresh, sthresh_up, cv2.THRESH_BINARY)
+            _, img_otsu = cv2.threshold(img_blur, sthresh, sthresh_up, cv2.THRESH_BINARY)
 
         # Morphological closing
         if close > 0:

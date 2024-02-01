@@ -68,6 +68,7 @@ def main(args):
 parser = argparse.ArgumentParser(description='Configurations for WSI Training')
 parser.add_argument('--data_root_dir', type=str, default=None, 
                     help='data directory')
+parser.add_argument('--continue_ckpt', action='store_true', default=False, help='continue training from checkpoint for fold?')
 parser.add_argument('--max_epochs', type=int, default=200,
                     help='maximum number of epochs to train (default: 200)')
 parser.add_argument('--lr', type=float, default=1e-4,
@@ -97,7 +98,10 @@ parser.add_argument('--model_type', type=str, choices=['clam_sb', 'clam_mb', 'mi
 parser.add_argument('--exp_code', type=str, help='experiment code for saving results')
 parser.add_argument('--weighted_sample', action='store_true', default=False, help='enable weighted sampling')
 parser.add_argument('--model_size', type=str, choices=['small', 'big'], default='small', help='size of model, does not affect mil')
-parser.add_argument('--task', type=str, choices=['task_1_tumor_vs_normal',  'task_2_tumor_subtyping'])
+parser.add_argument('--task', type=str, choices=['task_1_tumor_vs_normal',  'task_2_tumor_subtyping', 
+                    'bttf_full_ischemic-time_256', 'bttf_full_ischemic-time_2cat_256', 'bttf_full_ischemic-time_3cat_256', 
+                    'HEROHE_3cat_256', 'HEROHE_2cat_256', 'HEROHE_0vnot0_256',
+                    'All-HER2-HE_3cat_256', 'All-HER2-HE_PosvnotPos_256', 'All-HER2-HE_LowvnotLow_256', 'All-HER2-HE_0vnot0_256'])
 ### CLAM specific options
 parser.add_argument('--no_inst_cluster', action='store_true', default=False,
                      help='disable instance-level clustering')
@@ -175,7 +179,128 @@ elif args.task == 'task_2_tumor_subtyping':
 
     if args.model_type in ['clam_sb', 'clam_mb']:
         assert args.subtyping 
-        
+
+elif args.task == 'bttf_full_ischemic-time_256':
+    args.n_classes=4
+    dataset = Generic_MIL_Dataset(csv_path = 'dataset_csv/breast-time-to-fixation_full_isch_time_rescanOnly.csv',
+                            data_dir= os.path.join(args.data_root_dir, 'Features-256'),
+                            shuffle = False, 
+                            seed = args.seed, 
+                            print_info = True,
+                            label_dict = {'40min':0, '2hr':1, '24hr':2, '48hr':3},
+                            patient_strat= False,
+                            ignore=[])
+
+    if args.model_type in ['clam_sb', 'clam_mb']:
+        assert args.subtyping
+
+elif args.task == 'bttf_full_ischemic-time_2cat_256':
+    args.n_classes=2
+    dataset = Generic_MIL_Dataset(csv_path = 'dataset_csv/breast-time-to-fixation_full_isch_time_rescanOnly.csv',
+                            data_dir= os.path.join(args.data_root_dir, 'Features-256'),
+                            shuffle = False, 
+                            seed = args.seed, 
+                            print_info = True,
+                            label_dict = {'2hr':0, '40min':0, '24hr':1, '48hr':1},
+                            patient_strat= False,
+                            ignore=[])
+
+elif args.task == 'bttf_full_ischemic-time_3cat_256':
+    args.n_classes=3
+    dataset = Generic_MIL_Dataset(csv_path = 'dataset_csv/breast-time-to-fixation_full_isch_time_rescanOnly.csv',
+                            data_dir= os.path.join(args.data_root_dir, 'Features-256'),
+                            shuffle = False, 
+                            seed = args.seed, 
+                            print_info = True,
+                            label_dict = {'40min':0, '2hr':1, '24hr':2, '48hr':2},
+                            patient_strat= False,
+                            ignore=[])
+
+    if args.model_type in ['clam_sb', 'clam_mb']:
+        assert args.subtyping
+       
+elif args.task == 'HEROHE_3cat_256':
+    args.n_classes=3
+    dataset = Generic_MIL_Dataset(csv_path = 'dataset_csv/HEROHE_enough-sample.csv',
+                            data_dir= os.path.join(args.data_root_dir, 'Features-256'),
+                            shuffle = False, 
+                            seed = args.seed, 
+                            print_info = True,
+                            label_dict = {'0':0, 'Low':1, '3+':2, '2+AMP':2},
+                            patient_strat= False,
+                            ignore=[])
+
+    if args.model_type in ['clam_sb', 'clam_mb']:
+        assert args.subtyping
+
+elif args.task == 'HEROHE_2cat_256':
+    args.n_classes=2
+    dataset = Generic_MIL_Dataset(csv_path = 'dataset_csv/HEROHE_enough-sample.csv',
+                            data_dir= os.path.join(args.data_root_dir, 'Features-256'),
+                            shuffle = False, 
+                            seed = args.seed, 
+                            print_info = True,
+                            label_dict = {'0':0, 'Low':0, '3+':1, '2+AMP':1},
+                            patient_strat= False,
+                            ignore=[])
+
+elif args.task == 'HEROHE_0vnot0_256':
+    args.n_classes=2
+    dataset = Generic_MIL_Dataset(csv_path = 'dataset_csv/HEROHE_enough-sample.csv',
+                            data_dir= os.path.join(args.data_root_dir, 'Features-256'),
+                            shuffle = False, 
+                            seed = args.seed, 
+                            print_info = True,
+                            label_dict = {'0':0, 'Low':1, '3+':1, '2+AMP':1},
+                            patient_strat= False,
+                            ignore=[])
+
+elif args.task == 'All-HER2-HE_3cat_256':
+    args.n_classes=3
+    dataset = Generic_MIL_Dataset(csv_path = 'dataset_csv/All-HER2-HE-exclude.csv',
+                            data_dir= os.path.join(args.data_root_dir, 'CLAM_Features-256'),
+                            shuffle = False, 
+                            seed = args.seed, 
+                            print_info = True,
+                            label_dict = {'0':0, 'Low':1, 'Positive':2, '3+':2, '2+AMP':2},
+                            patient_strat= False,
+                            ignore=[])
+
+    if args.model_type in ['clam_sb', 'clam_mb']:
+        assert args.subtyping
+
+elif args.task == 'All-HER2-HE_PosvnotPos_256':
+    args.n_classes=2
+    dataset = Generic_MIL_Dataset(csv_path = 'dataset_csv/All-HER2-HE-exclude.csv',
+                            data_dir= os.path.join(args.data_root_dir, 'CLAM_Features-256'),
+                            shuffle = False, 
+                            seed = args.seed, 
+                            print_info = True,
+                            label_dict = {'0':0, 'Low':0, 'Positive':1, '3+':1, '2+AMP':1},
+                            patient_strat= False,
+                            ignore=[])
+
+elif args.task == 'All-HER2-HE_LowvnotLow_256':
+    args.n_classes=2
+    dataset = Generic_MIL_Dataset(csv_path = 'dataset_csv/All-HER2-HE-exclude.csv',
+                            data_dir= os.path.join(args.data_root_dir, 'CLAM_Features-256'),
+                            shuffle = False, 
+                            seed = args.seed, 
+                            print_info = True,
+                            label_dict = {'0':0, 'Low':1, 'Positive':0, '3+':0, '2+AMP':0},
+                            patient_strat= False,
+                            ignore=[])
+                            
+elif args.task == 'All-HER2-HE_0vnot0_256':
+    args.n_classes=2
+    dataset = Generic_MIL_Dataset(csv_path = 'dataset_csv/All-HER2-HE-exclude.csv',
+                            data_dir= os.path.join(args.data_root_dir, 'CLAM_Features-256'),
+                            shuffle = False, 
+                            seed = args.seed, 
+                            print_info = True,
+                            label_dict = {'0':0, 'Low':1, 'Positive':1, '3+':1, '2+AMP':1},
+                            patient_strat= False,
+                            ignore=[])
 else:
     raise NotImplementedError
     
@@ -209,5 +334,4 @@ if __name__ == "__main__":
     results = main(args)
     print("finished!")
     print("end script")
-
 
