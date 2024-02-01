@@ -222,67 +222,65 @@ parser.add_argument('--process_list',  type = str, default=None,
 					help='name of list of images to process with parameters (.csv)')
 
 if __name__ == '__main__':
-  args = parser.parse_args()
+	args = parser.parse_args()
 
-  patch_save_dir = os.path.join(args.save_dir, 'patches')
-  mask_save_dir = os.path.join(args.save_dir, 'masks')
-  stitch_save_dir = os.path.join(args.save_dir, 'stitches')
+	patch_save_dir = os.path.join(args.save_dir, 'patches')
+	mask_save_dir = os.path.join(args.save_dir, 'masks')
+	stitch_save_dir = os.path.join(args.save_dir, 'stitches')
 
-  if args.process_list:
-    process_list = os.path.join(args.save_dir, args.process_list)
+	if args.process_list:
+		process_list = os.path.join(args.save_dir, args.process_list)
 
-  else:
-    process_list = None
+	else:
+		process_list = None
 
-  print('source: ', args.source)
-  print('patch_save_dir: ', patch_save_dir)
-  print('mask_save_dir: ', mask_save_dir)
-  print('stitch_save_dir: ', stitch_save_dir)
+	print('source: ', args.source)
+	print('patch_save_dir: ', patch_save_dir)
+	print('mask_save_dir: ', mask_save_dir)
+	print('stitch_save_dir: ', stitch_save_dir)
+	
+	directories = {'source': args.source, 
+				   'save_dir': args.save_dir,
+				   'patch_save_dir': patch_save_dir, 
+				   'mask_save_dir' : mask_save_dir, 
+				   'stitch_save_dir': stitch_save_dir} 
 
-  directories = {'source': args.source, 
-            'save_dir': args.save_dir,
-            'patch_save_dir': patch_save_dir, 
-            'mask_save_dir' : mask_save_dir, 
-            'stitch_save_dir': stitch_save_dir} 
-
-  for key, val in directories.items():
-    print("{} : {}".format(key, val))
-    if key not in ['source']:
-      os.makedirs(val, exist_ok=True)
+	for key, val in directories.items():
+		print("{} : {}".format(key, val))
+		if key not in ['source']:
+			os.makedirs(val, exist_ok=True)
 
 
+	seg_params = {'seg_level': -1, 'sthresh': 8, 'mthresh': 7, 'close': 4, 'use_otsu': False,
+				  'keep_ids': 'none', 'exclude_ids': 'none'}
+	filter_params = {'a_t':100, 'a_h': 16, 'max_n_holes':8 }
+	vis_params = {'vis_level': -1, 'line_thickness': 250}
+	patch_params = {'white_thresh': 5, 'black_thresh': 40, 'use_padding': True, 'contour_fn': 'four_pt'}
 
-  #Breast-time-to-fixation, 256px
-  seg_params = {'seg_level': -1, 'sthresh': 4, 'mthresh': 3, 'close': 15, 'use_otsu': False,
-          'keep_ids': 'none', 'exclude_ids': 'none'}
-  filter_params = {'a_t':40, 'a_h': 4, 'max_n_holes':70 }
-  vis_params = {'vis_level': -1, 'line_thickness': 100}
-  patch_params = {'white_thresh': 5, 'black_thresh': 40, 'use_padding': True, 'contour_fn': 'four_pt'}
+	if args.preset:
+		preset_df = pd.read_csv(os.path.join('presets', args.preset))
+		for key in seg_params.keys():
+			seg_params[key] = preset_df.loc[0, key]
 
-  if args.preset:
-    preset_df = pd.read_csv(os.path.join('presets', args.preset))
-    for key in seg_params.keys():
-      seg_params[key] = preset_df.loc[0, key]
+		for key in filter_params.keys():
+			filter_params[key] = preset_df.loc[0, key]
 
-    for key in filter_params.keys():
-      filter_params[key] = preset_df.loc[0, key]
+		for key in vis_params.keys():
+			vis_params[key] = preset_df.loc[0, key]
 
-    for key in vis_params.keys():
-      vis_params[key] = preset_df.loc[0, key]
+		for key in patch_params.keys():
+			patch_params[key] = preset_df.loc[0, key]
+	
+	parameters = {'seg_params': seg_params,
+				  'filter_params': filter_params,
+	 			  'patch_params': patch_params,
+				  'vis_params': vis_params}
 
-    for key in patch_params.keys():
-      patch_params[key] = preset_df.loc[0, key]
+	print(parameters)
 
-  parameters = {'seg_params': seg_params,
-          'filter_params': filter_params,
-          'patch_params': patch_params,
-          'vis_params': vis_params}
-
-  print(parameters)
-
-  seg_times, patch_times = seg_and_patch(**directories, **parameters,
-                      patch_size = args.patch_size, step_size=args.step_size, 
-                      seg = args.seg,  use_default_params=False, save_mask = True, 
-                      stitch= args.stitch, custom_downsample = args.custom_downsample, 
-                      patch_level=args.patch_level, patch = args.patch,
-                      process_list = process_list, auto_skip=args.no_auto_skip)
+	seg_times, patch_times = seg_and_patch(**directories, **parameters,
+											patch_size = args.patch_size, step_size=args.step_size, 
+											seg = args.seg,  use_default_params=False, save_mask = True, 
+											stitch= args.stitch, custom_downsample = args.custom_downsample, 
+											patch_level=args.patch_level, patch = args.patch,
+											process_list = process_list, auto_skip=args.no_auto_skip)
